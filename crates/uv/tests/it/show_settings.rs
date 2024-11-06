@@ -79,6 +79,9 @@ fn resolve_uv_toml() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -224,6 +227,9 @@ fn resolve_uv_toml() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -372,6 +378,9 @@ fn resolve_uv_toml() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -554,6 +563,9 @@ fn resolve_pyproject_toml() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -703,6 +715,9 @@ fn resolve_pyproject_toml() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -830,6 +845,9 @@ fn resolve_pyproject_toml() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -1002,6 +1020,9 @@ fn resolve_index_url() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -1179,6 +1200,9 @@ fn resolve_index_url() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -1411,6 +1435,9 @@ fn resolve_find_links() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -1582,6 +1609,9 @@ fn resolve_top_level() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -1715,6 +1745,9 @@ fn resolve_top_level() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -1890,6 +1923,9 @@ fn resolve_top_level() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -2091,6 +2127,9 @@ fn resolve_user_configuration() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -2214,6 +2253,9 @@ fn resolve_user_configuration() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -2341,6 +2383,9 @@ fn resolve_user_configuration() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -2466,6 +2511,9 @@ fn resolve_user_configuration() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -2771,6 +2819,9 @@ fn resolve_poetry_toml() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -2924,6 +2975,9 @@ fn resolve_both() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -3031,6 +3085,84 @@ fn resolve_both() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Tests that errors when parsing `conflicting-groups` are reported.
+#[test]
+fn invalid_conflicting_groups() -> anyhow::Result<()> {
+    let context = TestContext::new("3.12");
+    let pyproject = context.temp_dir.child("pyproject.toml");
+
+    // Write in `pyproject.toml` schema.
+    pyproject.write_str(indoc::indoc! {r#"
+        [project]
+        name = "example"
+        version = "0.0.0"
+        requires-python = ">=3.12"
+
+        [tool.uv]
+        conflicting-groups = [
+            [{package = "foo", extra = "dev"}],
+        ]
+    "#})?;
+
+    // The file should be rejected for violating the schema.
+    uv_snapshot!(context.filters(), add_shared_args(context.lock()), @r###"
+    success: false
+    exit_code: 2
+    ----- stdout -----
+
+    ----- stderr -----
+    warning: Failed to parse `pyproject.toml` during settings discovery:
+      TOML parse error at line 7, column 22
+        |
+      7 | conflicting-groups = [
+        |                      ^
+      Each set of conflicting groups must have at least 2 entries, but found only 1
+
+    error: Failed to parse: `pyproject.toml`
+      Caused by: TOML parse error at line 7, column 22
+      |
+    7 | conflicting-groups = [
+      |                      ^
+    Each set of conflicting groups must have at least 2 entries, but found only 1
+    "###
+    );
+
+    Ok(())
+}
+
+/// Tests that valid `conflicting-groups` are parsed okay.
+#[test]
+fn valid_conflicting_groups() -> anyhow::Result<()> {
+    let context = TestContext::new("3.12");
+    let pyproject = context.temp_dir.child("pyproject.toml");
+
+    // Write in `pyproject.toml` schema.
+    pyproject.write_str(indoc::indoc! {r#"
+        [project]
+        name = "example"
+        version = "0.0.0"
+        requires-python = ">=3.12"
+
+        [tool.uv]
+        conflicting-groups = [
+            [{package = "foo", extra = "dev"}, {package = "bar", extra = "dev"}],
+        ]
+    "#})?;
+
+    // The file should be rejected for violating the schema.
+    uv_snapshot!(context.filters(), add_shared_args(context.lock()), @r###"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+
+    ----- stderr -----
+    Resolved 1 package in [TIME]
+    "###
+    );
+
+    Ok(())
+}
+
 /// Read from a `--config-file` command line argument.
 #[test]
 #[cfg_attr(
@@ -3096,6 +3228,9 @@ fn resolve_config_file() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -3229,7 +3364,7 @@ fn resolve_config_file() -> anyhow::Result<()> {
       |
     1 | [project]
       |  ^^^^^^^
-    unknown field `project`, expected one of `native-tls`, `offline`, `no-cache`, `cache-dir`, `preview`, `python-preference`, `python-downloads`, `concurrent-downloads`, `concurrent-builds`, `concurrent-installs`, `index`, `index-url`, `extra-index-url`, `no-index`, `find-links`, `index-strategy`, `keyring-provider`, `allow-insecure-host`, `resolution`, `prerelease`, `dependency-metadata`, `config-settings`, `no-build-isolation`, `no-build-isolation-package`, `exclude-newer`, `link-mode`, `compile-bytecode`, `no-sources`, `upgrade`, `upgrade-package`, `reinstall`, `reinstall-package`, `no-build`, `no-build-package`, `no-binary`, `no-binary-package`, `publish-url`, `trusted-publishing`, `pip`, `cache-keys`, `override-dependencies`, `constraint-dependencies`, `environments`, `workspace`, `sources`, `managed`, `package`, `default-groups`, `dev-dependencies`
+    unknown field `project`, expected one of `native-tls`, `offline`, `no-cache`, `cache-dir`, `preview`, `python-preference`, `python-downloads`, `concurrent-downloads`, `concurrent-builds`, `concurrent-installs`, `index`, `index-url`, `extra-index-url`, `no-index`, `find-links`, `index-strategy`, `keyring-provider`, `allow-insecure-host`, `resolution`, `prerelease`, `dependency-metadata`, `config-settings`, `no-build-isolation`, `no-build-isolation-package`, `exclude-newer`, `link-mode`, `compile-bytecode`, `no-sources`, `upgrade`, `upgrade-package`, `reinstall`, `reinstall-package`, `no-build`, `no-build-package`, `no-binary`, `no-binary-package`, `publish-url`, `trusted-publishing`, `pip`, `cache-keys`, `override-dependencies`, `constraint-dependencies`, `environments`, `conflicting-groups`, `workspace`, `sources`, `managed`, `package`, `default-groups`, `dev-dependencies`
     "###
     );
 
@@ -3344,6 +3479,9 @@ fn resolve_skip_empty() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -3472,6 +3610,9 @@ fn resolve_skip_empty() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -3621,6 +3762,9 @@ fn allow_insecure_host() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -3758,6 +3902,9 @@ fn index_priority() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -3935,6 +4082,9 @@ fn index_priority() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -4120,6 +4270,9 @@ fn index_priority() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -4296,6 +4449,9 @@ fn index_priority() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(
@@ -4483,6 +4639,9 @@ fn index_priority() -> anyhow::Result<()> {
         environments: SupportedEnvironments(
             [],
         ),
+        conflicting_groups: ConflictingGroupList(
+            [],
+        ),
         refresh: None(
             Timestamp(
                 SystemTime {
@@ -4659,6 +4818,9 @@ fn index_priority() -> anyhow::Result<()> {
         constraints_from_workspace: [],
         overrides_from_workspace: [],
         environments: SupportedEnvironments(
+            [],
+        ),
+        conflicting_groups: ConflictingGroupList(
             [],
         ),
         refresh: None(

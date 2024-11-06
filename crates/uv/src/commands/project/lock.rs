@@ -645,6 +645,7 @@ async fn do_lock(
                 None,
                 resolver_env,
                 python_requirement,
+                workspace.conflicting_groups(),
                 &client,
                 &flat_index,
                 &state.index,

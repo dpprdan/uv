@@ -1,4 +1,47 @@
 ## Project metadata
+### [`conflicting-groups`](#conflicting-groups) {: #conflicting-groups }
+
+Conflicting extras may be declared here.
+
+It's useful to declare conflicting extras when the extras have mutually
+incompatible dependencies. For example, extra `foo` might depend on
+`numpy==2.0.0` while extra `bar` might depend on `numpy==2.1.0`. These
+extras cannot be activated at the same time. This usually isn't a
+problem for pip-style workflows, but when using uv project support
+with universal resolution, it will try to produce a resolution that
+satisfies both extras simultaneously.
+
+When this happens, resolution will fail, because one cannot install
+both `numpy 2.0.0` and `numpy 2.1.0` into the same environment.
+
+To work around this, you may specify `foo` and `bar` as conflicting
+extras. When doing universal resolution in project mode, these extras
+will get their own "forks" distinct from one another in order to permit
+conflicting dependencies. In exchange, if one tries to install from the
+lock file with both conflicting extras activated, installation will
+fail.
+
+**Default value**: `[]`
+
+**Type**: `list[list[dict]]`
+
+**Example usage**:
+
+```toml title="pyproject.toml"
+[tool.uv]
+# Require that `foo[dev]` and `bar[dev]` requirements
+# are resolved in different forks so that they cannot
+# conflict with one another.
+conflicting-groups = [
+    [
+        { package = "foo", extra = "dev" },
+        { package = "bar", extra = "dev" },
+    ]
+]
+```
+
+---
+
 ### [`constraint-dependencies`](#constraint-dependencies) {: #constraint-dependencies }
 
 Constraints to apply when resolving the project's dependencies.

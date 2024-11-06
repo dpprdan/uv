@@ -76,6 +76,17 @@
         }
       ]
     },
+    "conflicting-groups": {
+      "description": "A list sets of conflicting groups or extras.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ConflictingGroupList"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "constraint-dependencies": {
       "description": "PEP 508-style requirements, e.g., `ruff==0.5.0`, or `ruff @ https://...`.",
       "type": [
@@ -550,6 +561,36 @@
       "type": "object",
       "additionalProperties": {
         "$ref": "#/definitions/ConfigSettingValue"
+      }
+    },
+    "ConflictingGroup": {
+      "description": "A single item in a set conflicting groups.\n\nEach item is a pair of a package and a corresponding extra name for that package.",
+      "type": "object",
+      "required": [
+        "extra",
+        "package"
+      ],
+      "properties": {
+        "extra": {
+          "$ref": "#/definitions/ExtraName"
+        },
+        "package": {
+          "$ref": "#/definitions/PackageName"
+        }
+      }
+    },
+    "ConflictingGroupList": {
+      "description": "A list of conflicting groups pre-defined by an end user.\n\nThis is useful to force the resolver to fork according to extras that have unavoidable conflicts with each other. (The alternative is that resolution will fail.)",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ConflictingGroups"
+      }
+    },
+    "ConflictingGroups": {
+      "description": "A single set of package-extra pairs that conflict with one another.\n\nWithin each set of conflicting groups, the resolver should isolate the requirements corresponding to each extra from the requirements of other extras in this set. That is, the resolver should put each set of requirements in a different fork.\n\nA `TryFrom<Vec<ConflictingGroup>>` impl may be used to build a set from a sequence. Note though that at least 2 groups are required.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ConflictingGroup"
       }
     },
     "ExcludeNewer": {
