@@ -24,7 +24,6 @@ uv-warnings = { workspace = true }
 csv = { workspace = true }
 flate2 = { workspace = true }
 fs-err = { workspace = true }
-glob = { workspace = true }
 globset = { workspace = true }
 itertools = { workspace = true }
 serde = { workspace = true }

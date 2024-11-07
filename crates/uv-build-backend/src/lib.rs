@@ -1,13 +1,12 @@
+mod globs;
 mod metadata;
-mod pep639_glob;
 
+use crate::globs::{parse_pep639_glob, Pep639GlobError};
 use crate::metadata::{PyProjectToml, ValidationError};
-use crate::pep639_glob::Pep639GlobError;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use fs_err::File;
-use glob::{GlobError, PatternError};
-use globset::{Glob, GlobSetBuilder};
+use globset::GlobSetBuilder;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use std::fs::FileType;
@@ -30,16 +29,19 @@ pub enum Error {
     Toml(#[from] toml::de::Error),
     #[error("Invalid pyproject.toml")]
     Validation(#[from] ValidationError),
-    #[error("Invalid `project.license-files` glob expression: `{0}`")]
-    Pep639Glob(String, #[source] Pep639GlobError),
-    #[error("The `project.license-files` entry is not a valid glob pattern: `{0}`")]
-    Pattern(String, #[source] PatternError),
-    /// [`GlobError`] is a wrapped io error.
-    #[error(transparent)]
-    Glob(#[from] GlobError),
+    #[error("Unsupported glob expression in `{field}`")]
+    Pep639Glob {
+        field: String,
+        #[source]
+        source: Pep639GlobError,
+    },
     /// [`globset::Error`] shows the glob that failed to parse.
-    #[error(transparent)]
-    GlobSet(#[from] globset::Error),
+    #[error("Unsupported glob expression in `{field}`")]
+    GlobSet {
+        field: String,
+        #[source]
+        err: globset::Error,
+    },
     #[error("Failed to walk source tree: `{}`", root.user_display())]
     WalkDir {
         root: PathBuf,
@@ -322,7 +324,10 @@ pub fn build_wheel(
             err,
         })?;
 
-        let relative_path = entry.path().strip_prefix(&strip_root)?;
+        let relative_path = entry
+            .path()
+            .strip_prefix(&strip_root)
+            .expect("walkdir starts with root");
         let relative_path_str = relative_path
             .to_str()
             .ok_or_else(|| Error::NotUtf8Path(relative_path.to_path_buf()))?;
@@ -395,16 +400,28 @@ pub fn build_source_dist(
     let includes = ["src/**/*", "pyproject.toml"];
     let mut include_builder = GlobSetBuilder::new();
     for include in includes {
-        include_builder.add(Glob::new(include)?);
+        include_builder.add(parse_pep639_glob(include).map_err(|err| Error::Pep639Glob {
+            field: "tool.uv.source-dist.include".to_string(),
+            source: err,
+        })?);
     }
-    let include_matcher = include_builder.build()?;
+    let include_matcher = include_builder.build().map_err(|err| Error::Pep639Glob {
+        field: "tool.uv.source-dist.include".to_string(),
+        source: Pep639GlobError::GlobError(err),
+    })?;
 
     let excludes = ["__pycache__", "*.pyc", "*.pyo"];
     let mut exclude_builder = GlobSetBuilder::new();
     for exclude in excludes {
-        exclude_builder.add(Glob::new(exclude)?);
+        exclude_builder.add(parse_pep639_glob(exclude).map_err(|err| Error::Pep639Glob {
+            field: "tool.uv.source-dist.exclude".to_string(),
+            source: err,
+        })?);
     }
-    let exclude_matcher = exclude_builder.build()?;
+    let exclude_matcher = exclude_builder.build().map_err(|err| Error::Pep639Glob {
+        field: "tool.uv.source-dist.exclude".to_string(),
+        source: Pep639GlobError::GlobError(err),
+    })?;
 
     // TODO(konsti): Add files linked by pyproject.toml
 

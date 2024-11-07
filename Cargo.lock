@@ -4326,7 +4326,6 @@ dependencies = [
  "csv",
  "flate2",
  "fs-err",
- "glob",
  "globset",
  "indoc",
  "insta",

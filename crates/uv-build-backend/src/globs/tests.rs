@@ -6,28 +6,39 @@ fn test_error() {
     let parse_err = |glob| parse_pep639_glob(glob).unwrap_err().to_string();
     assert_snapshot!(
         parse_err(".."),
-        @"The parent directory operator (`..`) at position 0 is not allowed in license file globs"
+        @"The parent directory operator (`..`) at position 0 is not allowed in glob: `..`"
     );
     assert_snapshot!(
         parse_err("licenses/.."),
-        @"The parent directory operator (`..`) at position 9 is not allowed in license file globs"
+        @"The parent directory operator (`..`) at position 9 is not allowed in glob: `licenses/..`"
     );
     assert_snapshot!(
         parse_err("licenses/LICEN!E.txt"),
-        @"Glob contains invalid character at position 14: `!`"
+        @"Invalid character `!` at position 14 in glob: `licenses/LICEN!E.txt`"
     );
     assert_snapshot!(
         parse_err("licenses/LICEN[!C]E.txt"),
-        @"Glob contains invalid character in range at position 15: `!`"
+        @"Invalid character `!` at position 15 in glob: `licenses/LICEN[!C]E.txt`"
     );
     assert_snapshot!(
         parse_err("licenses/LICEN[C?]E.txt"),
-        @"Glob contains invalid character in range at position 16: `?`"
+        @"Invalid character `?` at position 16 in glob: `licenses/LICEN[C?]E.txt`"
     );
-    assert_snapshot!(parse_err("******"), @"Pattern syntax error near position 2: wildcards are either regular `*` or recursive `**`");
+    assert_snapshot!(
+        parse_err("******"),
+        @"Too many at stars at position 0 in glob: `******`"
+    );
+    assert_snapshot!(
+        parse_err("licenses/**license"),
+        @"Too many at stars at position 9 in glob: `licenses/**license`"
+    );
+    assert_snapshot!(
+        parse_err("licenses/***/licenses.csv"),
+        @"Too many at stars at position 9 in glob: `licenses/***/licenses.csv`"
+    );
     assert_snapshot!(
         parse_err(r"licenses\eula.txt"),
-        @r"Glob contains invalid character at position 8: `\`"
+        @r"Invalid character `\` at position 8 in glob: `licenses\eula.txt`"
     );
 }
 
