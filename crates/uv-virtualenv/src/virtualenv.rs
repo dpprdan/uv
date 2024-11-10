@@ -287,23 +287,34 @@ pub(crate) fn create(
 
         let virtual_env_dir = match (relocatable, name.to_owned()) {
             (true, "activate") => {
-                r#"'"$(dirname -- "$(dirname -- "$(realpath -- "$SCRIPT_PATH")")")"'"#
+                r#"'"$(dirname -- "$(dirname -- "$(realpath -- "$SCRIPT_PATH")")")"'"#.to_string()
             }
-            (true, "activate.bat") => r"%~dp0..",
+            (true, "activate.bat") => r"%~dp0..".to_string(),
             (true, "activate.fish") => {
-                r#"'"$(dirname -- "$(cd "$(dirname -- "$(status -f)")"; and pwd)")"'"#
+                r#"'"$(dirname -- "$(cd "$(dirname -- "$(status -f)")"; and pwd)")"'"#.to_string()
             }
             // Note:
             // * relocatable activate scripts appear not to be possible in csh and nu shell
             // * `activate.ps1` is already relocatable by default.
             _ => {
-                // SAFETY: `unwrap` is guaranteed to succeed because `location` is an `Utf8PathBuf`.
-                location.simplified().to_str().unwrap()
+                location
+                    .simplified()
+                    .to_str()
+                    // SAFETY: `unwrap` is guaranteed to succeed because `location` is an `Utf8PathBuf`.
+                    .unwrap()
+                    // We want our `activate` script to support any posix shell. There's two kind of quotes:
+                    // Single and double quotes. In bash, single quotes must not contain another single
+                    // quote, you can't even escape it (https://linux.die.net/man/1/bash under "QUOTING").
+                    // Double quotes have escaping rules different from shell to shell, which we can't do.
+                    // Bash has `$'\''`, but that's not universal enough.
+                    // We can use implicit string concatenations, be putting the single quote into double
+                    // quotes:
+                    .replace('\'', r#"'"'"'"#)
             }
         };
 
         let activator = template
-            .replace("{{ VIRTUAL_ENV_DIR }}", virtual_env_dir)
+            .replace("{{ VIRTUAL_ENV_DIR }}", &virtual_env_dir)
             .replace("{{ BIN_NAME }}", bin_name)
             .replace(
                 "{{ VIRTUAL_PROMPT }}",
