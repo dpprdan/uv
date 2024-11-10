@@ -4779,6 +4779,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "uv-ieg-walk"
+version = "0.1.0"
+
+[[package]]
 name = "uv-install-wheel"
 version = "0.0.1"
 dependencies = [
