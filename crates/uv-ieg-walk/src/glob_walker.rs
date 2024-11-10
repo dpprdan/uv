@@ -17,7 +17,7 @@ impl GlobWalkDir {
         let walk_dir = WalkDir::new(&root);
         Self {
             root,
-            matcher: GlobDirMatcher::new(globs),
+            matcher: GlobDirMatcher::from_globs(globs),
             state: walk_dir,
         }
     }
@@ -78,7 +78,7 @@ pub struct GlobDirMatcher {
 }
 
 impl GlobDirMatcher {
-    pub fn new(globs: &[Glob]) -> Self {
+    pub fn from_globs(globs: &[Glob]) -> Self {
         let mut glob_set_builder = GlobSetBuilder::new();
         for glob in globs {
             glob_set_builder.add(glob.clone());
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn match_directory() {
         let patterns = PATTERNS.map(|pattern| parse_portable_glob(pattern).unwrap());
-        let matcher = GlobDirMatcher::new(&patterns);
+        let matcher = GlobDirMatcher::from_globs(&patterns);
         assert!(matcher.match_directory(Path::new("path1/dir1")));
         assert!(matcher.match_directory(Path::new("path2/dir2")));
         assert!(matcher.match_directory(Path::new("path3/dir3")));
@@ -221,7 +221,7 @@ mod tests {
             fs_err::File::create(file).unwrap();
         }
         let patterns = PATTERNS.map(|pattern| parse_portable_glob(pattern).unwrap());
-        let matcher = GlobDirMatcher::new(&patterns);
+        let matcher = GlobDirMatcher::from_globs(&patterns);
 
         // Test the prefix filtering
         let mut visited: Vec<_> = WalkDir::new(dir.path())
