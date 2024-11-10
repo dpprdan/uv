@@ -4330,6 +4330,7 @@ dependencies = [
  "indoc",
  "insta",
  "itertools 0.13.0",
+ "regex",
  "serde",
  "sha2",
  "spdx",
