@@ -307,7 +307,7 @@ pub(crate) fn create(
                     // quote, you can't even escape it (https://linux.die.net/man/1/bash under "QUOTING").
                     // Double quotes have escaping rules different from shell to shell, which we can't do.
                     // Bash has `$'\''`, but that's not universal enough.
-                    // We can use implicit string concatenations, be putting the single quote into double
+                    // We can use implicit string concatenations, by putting the single quote into double
                     // quotes:
                     .replace('\'', r#"'"'"'"#)
             }
