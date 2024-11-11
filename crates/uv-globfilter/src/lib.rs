@@ -1,4 +1,5 @@
-//! Implementation of PEP 639 cross-language restricted globs.
+//! Implementation of PEP 639 cross-language restricted globs and a related directory traversal
+//! prefilter.
 //!
 //! The goal is globs that are portable between languages and operating systems.
 

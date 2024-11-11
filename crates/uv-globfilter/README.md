@@ -15,9 +15,9 @@ When traversing the directory, you
 
 It supports the cross-language glob syntax from [PEP 639](https://peps.python.org/pep-0639/#add-license-FILES-key):
 
-- Alphanumeric characters, underscores (`_`), hyphens (`-`) and dots (`.`) are e matched verbatim.
+- Alphanumeric characters, underscores (`_`), hyphens (`-`) and dots (`.`) are matched verbatim.
 - The special glob characters are:
-  - `*`: Matches any numpy of characters except path separators
+  - `*`: Matches any number of characters except path separators
   - `?`: Matches a single character except the path separator
   - `**`: Matches any number of characters including path separators
   - `[]`, containing only the verbatim matched characters: Matches a single of the characters contained. Within
