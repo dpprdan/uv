@@ -15,7 +15,7 @@ fn main() {
         let glob = parse_portable_glob(include).unwrap();
         include_globs.push(glob.clone());
     }
-    let include_matcher = GlobDirFilter::from_globs(&include_globs);
+    let include_matcher = GlobDirFilter::from_globs(&include_globs).unwrap();
 
     let mut exclude_builder = GlobSetBuilder::new();
     for exclude in excludes {

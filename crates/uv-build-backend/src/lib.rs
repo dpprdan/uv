@@ -34,7 +34,7 @@ pub enum Error {
         #[source]
         source: PortableGlobError,
     },
-    /// https://github.com/BurntSushi/ripgrep/discussions/2927
+    /// <https://github.com/BurntSushi/ripgrep/discussions/2927>
     #[error("Glob expressions caused to large regex in: `{field}`")]
     GlobSetTooLarge {
         field: String,
@@ -453,7 +453,11 @@ pub fn build_source_dist(
         })?;
         include_globs.push(glob.clone());
     }
-    let include_matcher = GlobDirFilter::from_globs(&include_globs);
+    let include_matcher =
+        GlobDirFilter::from_globs(&include_globs).map_err(|err| Error::GlobSetTooLarge {
+            field: "tool.uv.source-dist.include".to_string(),
+            source: err,
+        })?;
 
     let mut exclude_builder = GlobSetBuilder::new();
     for exclude in settings.exclude {
