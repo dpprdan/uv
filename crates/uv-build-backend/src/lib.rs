@@ -1,7 +1,5 @@
-mod globs;
 mod metadata;
 
-use crate::globs::{parse_pep639_glob, Pep639GlobError};
 use crate::metadata::{PyProjectToml, ValidationError};
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -18,6 +16,7 @@ use thiserror::Error;
 use tracing::{debug, trace};
 use uv_distribution_filename::{SourceDistExtension, SourceDistFilename, WheelFilename};
 use uv_fs::Simplified;
+use uv_globfilter::{parse_portable_glob, GlobDirFilter, PortableGlobError};
 use walkdir::WalkDir;
 use zip::{CompressionMethod, ZipWriter};
 
@@ -29,14 +28,21 @@ pub enum Error {
     Toml(#[from] toml::de::Error),
     #[error("Invalid pyproject.toml")]
     Validation(#[from] ValidationError),
-    #[error("Unsupported glob expression in `{field}`")]
-    Pep639Glob {
+    #[error("Unsupported glob expression in: `{field}`")]
+    PortableGlob {
         field: String,
         #[source]
-        source: Pep639GlobError,
+        source: PortableGlobError,
+    },
+    /// https://github.com/BurntSushi/ripgrep/discussions/2927
+    #[error("Glob expressions caused to large regex in: `{field}`")]
+    GlobSetTooLarge {
+        field: String,
+        #[source]
+        source: globset::Error,
     },
     /// [`globset::Error`] shows the glob that failed to parse.
-    #[error("Unsupported glob expression in `{field}`")]
+    #[error("Unsupported glob expression in: `{field}`")]
     GlobSet {
         field: String,
         #[source]
@@ -359,10 +365,52 @@ pub fn build_wheel(
     Ok(filename)
 }
 
+/// TODO(konsti): Wire this up with actual settings and remove this struct.
+///
+/// To select which files to include in the source distribution, we first add the includes, then
+/// remove the excludes from that.
+pub struct SourceDistSettings {
+    /// Glob expressions which files and directories to include in the source distribution.
+    ///
+    /// Includes are anchored, which means that `pyproject.toml` includes only
+    /// `<project root>/pyproject.toml`. Use for example `assets/**/sample.csv` to include for all
+    /// `sample.csv` files in `<project root>/assets` or any child directory. To recursively include
+    /// all files under a directory, use a `/**` suffix, e.g. `src/**`. For performance and
+    /// reproducibility, avoid unanchored matches such as `**/sample.csv`.
+    ///
+    /// The glob syntax is the reduced portable glob from
+    /// [PEP 639](https://peps.python.org/pep-0639/#add-license-FILES-key).
+    include: Vec<String>,
+    /// Glob expressions which files and directories to exclude from the previous source
+    /// distribution includes.
+    ///
+    /// Excludes are not, which means that `__pycache__` excludes all directories named
+    /// `__pycache__` and it's children anywhere. To anchor a directory, use a `/` prefix, e.g.,
+    /// `/dist` will exclude only `<project root>/dist`.
+    ///
+    /// The glob syntax is the reduced portable glob from
+    /// [PEP 639](https://peps.python.org/pep-0639/#add-license-FILES-key).
+    exclude: Vec<String>,
+}
+
+impl Default for SourceDistSettings {
+    fn default() -> Self {
+        Self {
+            include: vec!["src/**".to_string(), "pyproject.toml".to_string()],
+            exclude: vec![
+                "__pycache__".to_string(),
+                "*.pyc".to_string(),
+                "*.pyo".to_string(),
+            ],
+        }
+    }
+}
+
 /// Build a source distribution from the source tree and place it in the output directory.
 pub fn build_source_dist(
     source_tree: &Path,
     source_dist_directory: &Path,
+    settings: SourceDistSettings,
     uv_version: &str,
 ) -> Result<SourceDistFilename, Error> {
     let contents = fs_err::read_to_string(source_tree.join("pyproject.toml"))?;
@@ -397,54 +445,69 @@ pub fn build_source_dist(
     )
     .map_err(|err| Error::TarWrite(source_dist_path.clone(), err))?;
 
-    let includes = ["src/**/*", "pyproject.toml"];
-    let mut include_builder = GlobSetBuilder::new();
-    for include in includes {
-        include_builder.add(parse_pep639_glob(include).map_err(|err| Error::Pep639Glob {
+    let mut include_globs = Vec::new();
+    for include in settings.include {
+        let glob = parse_portable_glob(&include).map_err(|err| Error::PortableGlob {
             field: "tool.uv.source-dist.include".to_string(),
             source: err,
-        })?);
+        })?;
+        include_globs.push(glob.clone());
     }
-    let include_matcher = include_builder.build().map_err(|err| Error::Pep639Glob {
-        field: "tool.uv.source-dist.include".to_string(),
-        source: Pep639GlobError::GlobError(err),
-    })?;
+    let include_matcher = GlobDirFilter::from_globs(&include_globs);
 
-    let excludes = ["__pycache__", "*.pyc", "*.pyo"];
     let mut exclude_builder = GlobSetBuilder::new();
-    for exclude in excludes {
-        exclude_builder.add(parse_pep639_glob(exclude).map_err(|err| Error::Pep639Glob {
+    for exclude in settings.exclude {
+        let exclude = if let Some(exclude) = exclude.strip_prefix("/") {
+            exclude.to_string()
+        } else {
+            format!("**/{exclude}").to_string()
+        };
+        let glob = parse_portable_glob(&exclude).map_err(|err| Error::PortableGlob {
             field: "tool.uv.source-dist.exclude".to_string(),
             source: err,
-        })?);
+        })?;
+        exclude_builder.add(glob);
     }
-    let exclude_matcher = exclude_builder.build().map_err(|err| Error::Pep639Glob {
-        field: "tool.uv.source-dist.exclude".to_string(),
-        source: Pep639GlobError::GlobError(err),
-    })?;
+    let exclude_matcher = exclude_builder
+        .build()
+        .map_err(|err| Error::GlobSetTooLarge {
+            field: "tool.uv.source-dist.exclude".to_string(),
+            source: err,
+        })?;
 
     // TODO(konsti): Add files linked by pyproject.toml
 
-    for file in WalkDir::new(source_tree).into_iter().filter_entry(|dir| {
-        let relative = dir
-            .path()
-            .strip_prefix(source_tree)
-            .expect("walkdir starts with root");
-        // TODO(konsti): Also check that we're matching at least a prefix of an include matcher.
-        !exclude_matcher.is_match(relative)
-    }) {
-        let entry = file.map_err(|err| Error::WalkDir {
-            root: source_tree.to_path_buf(),
-            err,
-        })?;
+    for entry in WalkDir::new(source_tree).into_iter().filter_entry(|entry| {
+        // TODO(konsti): This is should be prettier.
         let relative = entry
             .path()
             .strip_prefix(source_tree)
-            .expect("walkdir starts with root");
-        if !include_matcher.is_match(relative) {
+            .expect("walkdir starts with root")
+            .to_path_buf();
+
+        // Fast path: Don't descend into a directory that can't be included. This is the most
+        // important performance optimization, it avoids us descending e.g. into the `.venv`.
+        // While walkdir is generally cheap, we still need to avoid traversing data directories at
+        // least on the top level, and each IO operations has a high latency on network file
+        // systems (compared to reading the file).
+        include_matcher.match_directory(&relative) && !exclude_matcher.is_match(&relative)
+    }) {
+        let entry = entry.map_err(|err| Error::WalkDir {
+            root: source_tree.to_path_buf(),
+            err,
+        })?;
+        // TODO(konsti): This is should be prettier.
+        let relative = entry
+            .path()
+            .strip_prefix(source_tree)
+            .expect("walkdir starts with root")
+            .to_path_buf();
+
+        if !include_matcher.match_path(&relative) || exclude_matcher.is_match(&relative) {
             trace!("Excluding {}", relative.user_display());
             continue;
-        }
+        };
+
         debug!("Including {}", relative.user_display());
 
         let metadata = fs_err::metadata(entry.path())?;
@@ -479,7 +542,7 @@ pub fn build_source_dist(
             .map_err(|err| Error::TarWrite(source_dist_path.clone(), err))?;
         } else {
             return Err(Error::UnsupportedFileType(
-                relative.to_path_buf(),
+                relative.clone(),
                 entry.file_type(),
             ));
         }

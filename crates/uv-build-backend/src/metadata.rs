@@ -1,4 +1,3 @@
-use crate::globs::parse_pep639_glob;
 use crate::Error;
 use globset::{Glob, GlobSetBuilder};
 use itertools::Itertools;
@@ -9,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tracing::{debug, trace};
 use uv_fs::Simplified;
+use uv_globfilter::parse_portable_glob;
 use uv_normalize::{ExtraName, PackageName};
 use uv_pep440::{Version, VersionSpecifiers};
 use uv_pep508::{Requirement, VersionOrUrl};
@@ -317,7 +317,7 @@ impl PyProjectToml {
                 let mut license_glob_builder = GlobSetBuilder::new();
                 for license_glob in license_globs {
                     let pep639_glob =
-                        parse_pep639_glob(license_glob).map_err(|err| Error::Pep639Glob {
+                        parse_portable_glob(license_glob).map_err(|err| Error::PortableGlob {
                             field: license_glob.to_string(),
                             source: err,
                         })?;
